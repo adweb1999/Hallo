@@ -4,10 +4,10 @@ TARGET := iphone:clang:latest:14.0
 
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = OneStateLogin
+TWEAK_NAME = Login
 
-OneStateLogin_FILES = Tweak.xm
-OneStateLogin_CFLAGS = -fobjc-arc
-OneStateLogin_LDFLAGS = -framework UIKit -framework Foundation
+Login_FILES = Tweak.xm
+Login_CFLAGS = -fobjc-arc
+Login_LDFLAGS = -framework UIKit -framework Foundation
 
 include $(THEOS_MAKE_PATH)/tweak.mk
