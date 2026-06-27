@@ -1,0 +1,9 @@
+Package: com.yourname.onestatelogin
+Name: OneState Login
+Depends: mobilesubstrate
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Login screen for ANY iOS app
+Maintainer: YourName
+Author: YourName
+Section: Tweaks
