@@ -1,9 +1,9 @@
-# OneStateLogin - Any App
+# OneStateLogin - Any App (Fixed)
 
 ## Features
 - Works on ANY iOS app
 - Simple UIAlertController login screen
-- No ImGui, No Metal
+- Fixed compilation errors
 
 ## Files
 - `Makefile` - Build config

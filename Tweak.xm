@@ -5,6 +5,11 @@
 static BOOL g_loginShown = NO;
 static BOOL g_loginSuccess = NO;
 
+// Forward declaration
+@interface UIWindow (Login)
+- (void)showLoginAlert;
+@end
+
 BOOL checkAPI(NSString *username, NSString *password, NSString *deviceID) {
     return [username isEqualToString:@"admin"] && [password isEqualToString:@"123456"];
 }
@@ -29,10 +34,11 @@ BOOL checkAPI(NSString *username, NSString *password, NSString *deviceID) {
     NSString *deviceID = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
     NSString *appName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"];
 
+    NSString *msg = [NSString stringWithFormat:@"App: %@ | Device: %@", appName, deviceID];
+
     UIAlertController *alert = [UIAlertController 
-        alertControllerWithTitle:@"🔒 Login Required" 
-        message:[NSString stringWithFormat:@"App: %@
-Device: %@", appName, deviceID] 
+        alertControllerWithTitle:@"Login Required" 
+        message:msg 
         preferredStyle:UIAlertControllerStyleAlert];
 
     [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
@@ -46,7 +52,7 @@ Device: %@", appName, deviceID]
     }];
 
     UIAlertAction *loginAction = [UIAlertAction 
-        actionWithTitle:@"✅ Login" 
+        actionWithTitle:@"Login" 
         style:UIAlertActionStyleDefault 
         handler:^(UIAlertAction *action) {
             NSString *username = alert.textFields[0].text;
@@ -66,7 +72,7 @@ Device: %@", appName, deviceID]
                 g_loginSuccess = YES;
 
                 UIAlertController *successAlert = [UIAlertController 
-                    alertControllerWithTitle:@"✅ Welcome" 
+                    alertControllerWithTitle:@"Welcome" 
                     message:@"Login successful!" 
                     preferredStyle:UIAlertControllerStyleAlert];
 
@@ -80,7 +86,7 @@ Device: %@", appName, deviceID]
                 g_loginShown = NO;
 
                 UIAlertController *errorAlert = [UIAlertController 
-                    alertControllerWithTitle:@"❌ Error" 
+                    alertControllerWithTitle:@"Error" 
                     message:@"Invalid username or password" 
                     preferredStyle:UIAlertControllerStyleAlert];
 
@@ -96,7 +102,7 @@ Device: %@", appName, deviceID]
         }];
 
     UIAlertAction *cancelAction = [UIAlertAction 
-        actionWithTitle:@"❌ Cancel" 
+        actionWithTitle:@"Cancel" 
         style:UIAlertActionStyleCancel 
         handler:^(UIAlertAction *action) {
             g_loginShown = NO;
