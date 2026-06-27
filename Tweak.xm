@@ -1,4 +1,4 @@
-// Tweak.xm - OneStateLogin (بدون API وبدون Device ID)
+// Tweak.xm - OneStateLogin (بدون API)
 
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
@@ -93,7 +93,7 @@
 
 @end
 
-// ==================== Helper Function to Get Key Window ====================
+// ==================== Safe Key Window Getter ====================
 static UIWindow *getKeyWindow(void) {
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -107,7 +107,10 @@ static UIWindow *getKeyWindow(void) {
         }
         return nil;
     } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         return [[UIApplication sharedApplication] keyWindow];
+#pragma clang diagnostic pop
     }
 }
 
