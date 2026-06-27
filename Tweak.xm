@@ -4,7 +4,6 @@
 #import <Foundation/Foundation.h>
 
 // ==================== CONFIG ====================
-// غير هذه القيم حسب رغبتك
 #define CORRECT_USERNAME @"admin"
 #define CORRECT_PASSWORD @"123456"
 
@@ -22,7 +21,6 @@
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor blackColor];
     
-    // Title
     UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 120, self.view.bounds.size.width, 60)];
     titleLabel.text = @"OneState Login";
     titleLabel.textColor = [UIColor whiteColor];
@@ -30,7 +28,6 @@
     titleLabel.textAlignment = NSTextAlignmentCenter;
     [self.view addSubview:titleLabel];
     
-    // Username
     self.usernameField = [[UITextField alloc] initWithFrame:CGRectMake(40, 220, self.view.bounds.size.width - 80, 55)];
     self.usernameField.placeholder = @"Username";
     self.usernameField.borderStyle = UITextBorderStyleRoundedRect;
@@ -39,7 +36,6 @@
     self.usernameField.delegate = self;
     [self.view addSubview:self.usernameField];
     
-    // Password
     self.passwordField = [[UITextField alloc] initWithFrame:CGRectMake(40, 290, self.view.bounds.size.width - 80, 55)];
     self.passwordField.placeholder = @"Password";
     self.passwordField.secureTextEntry = YES;
@@ -49,7 +45,6 @@
     self.passwordField.delegate = self;
     [self.view addSubview:self.passwordField];
     
-    // Login Button
     self.loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.loginButton.frame = CGRectMake(40, 380, self.view.bounds.size.width - 80, 60);
     [self.loginButton setTitle:@"تسجيل الدخول" forState:UIControlStateNormal];
@@ -59,7 +54,6 @@
     [self.loginButton addTarget:self action:@selector(loginButtonTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:self.loginButton];
     
-    // Status Label
     self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(40, 460, self.view.bounds.size.width - 80, 40)];
     self.statusLabel.textColor = [UIColor redColor];
     self.statusLabel.textAlignment = NSTextAlignmentCenter;
@@ -99,6 +93,24 @@
 
 @end
 
+// ==================== Helper Function to Get Key Window ====================
+static UIWindow *getKeyWindow(void) {
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow *window in scene.windows) {
+                    if (window.isKeyWindow) {
+                        return window;
+                    }
+                }
+            }
+        }
+        return nil;
+    } else {
+        return [[UIApplication sharedApplication] keyWindow];
+    }
+}
+
 // ==================== HOOKS ====================
 
 %hook UIApplication
@@ -107,17 +119,7 @@
     BOOL orig = %orig;
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *keyWindow = [self keyWindow];
-        
-        if (!keyWindow && @available(iOS 13.0, *)) {
-            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                if (scene.activationState == UISceneActivationStateForegroundActive) {
-                    keyWindow = scene.windows.firstObject;
-                    break;
-                }
-            }
-        }
-        
+        UIWindow *keyWindow = getKeyWindow();
         if (keyWindow) {
             OneStateLoginViewController *loginVC = [[OneStateLoginViewController alloc] init];
             loginVC.view.frame = keyWindow.bounds;
@@ -139,10 +141,13 @@
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            OneStateLoginViewController *loginVC = [[OneStateLoginViewController alloc] init];
-            loginVC.view.frame = self.bounds;
-            [self addSubview:loginVC.view];
-            [self bringSubviewToFront:loginVC.view];
+            UIWindow *keyWindow = getKeyWindow();
+            if (keyWindow) {
+                OneStateLoginViewController *loginVC = [[OneStateLoginViewController alloc] init];
+                loginVC.view.frame = keyWindow.bounds;
+                [keyWindow addSubview:loginVC.view];
+                [keyWindow bringSubviewToFront:loginVC.view];
+            }
         });
     });
 }
@@ -151,5 +156,5 @@
 
 %ctor {
     %init;
-    NSLog(@"[OneStateLogin] Tweak Loaded - Simple Login Active");
+    NSLog(@"[OneStateLogin] Tweak Loaded Successfully");
 }
