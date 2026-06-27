@@ -13,12 +13,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+
       - name: Setup Theos
         run: |
           export THEOS=~/theos
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+
+      - name: Download SDKs
+        run: |
+          export THEOS=~/theos
+          # تحميل SDKs من مصدر بديل
+          curl -L "https://github.com/theos/sdks/archive/refs/heads/master.tar.gz" -o /tmp/sdks.tar.gz
+          tar -xzf /tmp/sdks.tar.gz -C /tmp
+          mkdir -p $THEOS/sdks
+          cp -r /tmp/sdks-master/iPhoneOS*.sdk $THEOS/sdks/ || true
+          ls -la $THEOS/sdks/
+
+      - name: Verify Files
+        run: |
+          ls -la
+          cat Tweak.xm
 
       - name: Build Tweak
         run: |
@@ -27,17 +47,9 @@ jobs:
           make clean
           make package FINALPACKAGE=1
 
-      - name: Upload DEB
-        uses: actions/upload-artifact@v4
-        with:
-          name: OneStateLogin-deb
-          path: packages/*.deb
-          retention-days: 30
-
       - name: Upload DYLIB
         uses: actions/upload-artifact@v4
         with:
           name: OneStateLogin-dylib
           path: .theos/obj/OneStateLogin.dylib
           retention-days: 30
-
