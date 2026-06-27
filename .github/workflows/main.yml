@@ -1,55 +1,43 @@
-name: Build OneStateLogin dylib
+name: Build OneStateLogin Tweak
 
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ created ]
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest   # أو macos-14 إذا أردت
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-          xcodebuild -version
+      - name: Install Theos
+        uses: Randomblock1/theos-action@v1
+        with:
+          theos-dir: '$GITHUB_WORKSPACE/theos'
+          # يمكنك إضافة cache لتسريع العملية في المرات القادمة
 
-      - name: Setup Theos
+      - name: Build the Tweak
         run: |
-          export THEOS=~/theos
-          echo "THEOS=$THEOS" >> $GITHUB_ENV
-          echo "$THEOS/bin" >> $GITHUB_PATH
-          git clone --recursive https://github.com/theos/theos.git $THEOS
-
-      - name: Download SDKs
-        run: |
-          export THEOS=~/theos
-          # تحميل SDKs من مصدر بديل
-          curl -L "https://github.com/theos/sdks/archive/refs/heads/master.tar.gz" -o /tmp/sdks.tar.gz
-          tar -xzf /tmp/sdks.tar.gz -C /tmp
-          mkdir -p $THEOS/sdks
-          cp -r /tmp/sdks-master/iPhoneOS*.sdk $THEOS/sdks/ || true
-          ls -la $THEOS/sdks/
-
-      - name: Verify Files
-        run: |
-          ls -la
-          cat Tweak.xm
-
-      - name: Build Tweak
-        run: |
-          export THEOS=~/theos
-          export PATH="$THEOS/bin:$PATH"
+          cd $GITHUB_WORKSPACE
           make clean
           make package FINALPACKAGE=1
 
-      - name: Upload DYLIB
+      - name: Upload .deb Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneStateLogin-Deb
+          path: packages/*.deb
+          retention-days: 30
+
+      - name: Upload dylib (optional)
         uses: actions/upload-artifact@v4
         with:
           name: OneStateLogin-dylib
-          path: .theos/obj/OneStateLogin.dylib
-          retention-days: 30
+          path: obj/*.dylib
+          retention-days: 7
