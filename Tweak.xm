@@ -4,8 +4,11 @@
 #import <Foundation/Foundation.h>
 
 // ==================== CONFIG ====================
-#define API_ENDPOINT @"https://your-api.com/verify"   // ←← غيرها بـ API الخاص بك
-#define SHARED_SECRET @"your-secret-key-here"         // مفتاح سري للأمان
+// ←←← غير هذين السطرين فقط ←←←
+
+#define API_ENDPOINT @"https://script.google.com/macros/s/YOUR_WEB_APP_URL_HERE/exec"
+
+#define SHARED_SECRET @"your-secret-key-here"     // ←← يجب أن يكون نفس المفتاح في Google Apps Script
 
 // ==================== LOGIN VIEW CONTROLLER ====================
 @interface OneStateLoginViewController : UIViewController <UITextFieldDelegate>
@@ -121,7 +124,7 @@
                 }];
             } else {
                 self.statusLabel.textColor = [UIColor redColor];
-                self.statusLabel.text = json[@"message"] ?: @"فشل التحقق (حساب غير صالح أو منتهي أو جهاز غير مسجل)";
+                self.statusLabel.text = json[@"message"] ?: @"فشل التحقق";
                 self.loginButton.enabled = YES;
             }
         });
