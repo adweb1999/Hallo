@@ -1,16 +1,13 @@
-// Tweak.xm - OneStateLogin Online Version
+// Tweak.xm - OneStateLogin (JSONBin Version)
 
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
 
 // ==================== CONFIG ====================
-// ←←← غير هذين السطرين فقط ←←←
+#define JSON_BIN_URL @"https://api.jsonbin.io/v3/b/6a4071d6f5f4af5e293b11e4/latest"
+#define MASTER_KEY @"$2a$10$0Z3J8lUjgst.0aESOMXKukNSTXEjRAcTUwzYeV5RS8r6N4HDCbg6"
 
-#define API_ENDPOINT @"https://script.google.com/macros/s/YOUR_WEB_APP_URL_HERE/exec"
-
-#define SHARED_SECRET @"your-secret-key-here"     // ←← يجب أن يكون نفس المفتاح في Google Apps Script
-
-// ==================== LOGIN VIEW CONTROLLER ====================
+// ==================== LOGIN VIEW ====================
 @interface OneStateLoginViewController : UIViewController <UITextFieldDelegate>
 @property (nonatomic, strong) UITextField *usernameField;
 @property (nonatomic, strong) UITextField *passwordField;
@@ -24,41 +21,35 @@
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor blackColor];
     
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 100, self.view.bounds.size.width, 70)];
-    titleLabel.text = @"OneState Login";
-    titleLabel.textColor = [UIColor whiteColor];
-    titleLabel.font = [UIFont boldSystemFontOfSize:32];
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    [self.view addSubview:titleLabel];
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 120, self.view.bounds.size.width, 60)];
+    title.text = @"OneState Login";
+    title.textColor = [UIColor whiteColor];
+    title.font = [UIFont boldSystemFontOfSize:30];
+    title.textAlignment = NSTextAlignmentCenter;
+    [self.view addSubview:title];
     
-    self.usernameField = [[UITextField alloc] initWithFrame:CGRectMake(40, 200, self.view.bounds.size.width - 80, 55)];
+    self.usernameField = [[UITextField alloc] initWithFrame:CGRectMake(40, 220, self.view.bounds.size.width-80, 50)];
     self.usernameField.placeholder = @"اسم المستخدم";
     self.usernameField.borderStyle = UITextBorderStyleRoundedRect;
     self.usernameField.backgroundColor = [UIColor whiteColor];
-    self.usernameField.font = [UIFont systemFontOfSize:18];
-    self.usernameField.delegate = self;
     [self.view addSubview:self.usernameField];
     
-    self.passwordField = [[UITextField alloc] initWithFrame:CGRectMake(40, 270, self.view.bounds.size.width - 80, 55)];
+    self.passwordField = [[UITextField alloc] initWithFrame:CGRectMake(40, 280, self.view.bounds.size.width-80, 50)];
     self.passwordField.placeholder = @"كلمة المرور";
     self.passwordField.secureTextEntry = YES;
     self.passwordField.borderStyle = UITextBorderStyleRoundedRect;
     self.passwordField.backgroundColor = [UIColor whiteColor];
-    self.passwordField.font = [UIFont systemFontOfSize:18];
-    self.passwordField.delegate = self;
     [self.view addSubview:self.passwordField];
     
     self.loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.loginButton.frame = CGRectMake(40, 350, self.view.bounds.size.width - 80, 60);
+    self.loginButton.frame = CGRectMake(40, 350, self.view.bounds.size.width-80, 55);
     [self.loginButton setTitle:@"تسجيل الدخول" forState:UIControlStateNormal];
     self.loginButton.backgroundColor = [UIColor systemBlueColor];
     [self.loginButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.loginButton.titleLabel.font = [UIFont boldSystemFontOfSize:20];
-    [self.loginButton addTarget:self action:@selector(loginButtonTapped) forControlEvents:UIControlEventTouchUpInside];
+    [self.loginButton addTarget:self action:@selector(loginTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:self.loginButton];
     
-    self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(40, 430, self.view.bounds.size.width - 80, 50)];
-    self.statusLabel.textColor = [UIColor redColor];
+    self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(40, 420, self.view.bounds.size.width-80, 60)];
     self.statusLabel.textAlignment = NSTextAlignmentCenter;
     self.statusLabel.numberOfLines = 2;
     self.statusLabel.font = [UIFont systemFontOfSize:16];
@@ -69,37 +60,26 @@
     return [[[UIDevice currentDevice] identifierForVendor] UUIDString];
 }
 
-- (void)loginButtonTapped {
-    NSString *username = self.usernameField.text;
-    NSString *password = self.passwordField.text;
+- (void)loginTapped {
+    NSString *user = self.usernameField.text;
+    NSString *pass = self.passwordField.text;
     
-    if (username.length == 0 || password.length == 0) {
-        self.statusLabel.text = @"يرجى ملء جميع الحقول";
+    if (user.length == 0 || pass.length == 0) {
+        self.statusLabel.text = @"يرجى ملء الحقول";
         return;
     }
     
     self.loginButton.enabled = NO;
     self.statusLabel.textColor = [UIColor whiteColor];
-    self.statusLabel.text = @"جاري التحقق من الخادم...";
+    self.statusLabel.text = @"جاري التحقق...";
     
-    [self verifyWithAPI:username password:password];
+    [self checkLogin:user password:pass];
 }
 
-- (void)verifyWithAPI:(NSString *)username password:(NSString *)password {
-    NSURL *url = [NSURL URLWithString:API_ENDPOINT];
+- (void)checkLogin:(NSString *)username password:(NSString *)password {
+    NSURL *url = [NSURL URLWithString:JSON_BIN_URL];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-    request.HTTPMethod = @"POST";
-    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-    
-    NSDictionary *body = @{
-        @"username": username,
-        @"password": password,
-        @"device_id": [self getDeviceID],
-        @"secret": SHARED_SECRET
-    };
-    
-    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:body options:0 error:nil];
-    request.HTTPBody = jsonData;
+    [request setValue:MASTER_KEY forHTTPHeaderField:@"X-Master-Key"];
     
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -110,39 +90,54 @@
             }
             
             NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            BOOL success = [json[@"success"] boolValue];
+            NSArray *users = json[@"record"][@"users"];
             
-            if (success) {
-                self.statusLabel.textColor = [UIColor greenColor];
-                self.statusLabel.text = @"تم تسجيل الدخول بنجاح!";
-                
-                [UIView animateWithDuration:0.6 animations:^{
-                    self.view.alpha = 0.0;
-                } completion:^(BOOL finished) {
-                    [self.view removeFromSuperview];
-                    [self removeFromParentViewController];
-                }];
-            } else {
-                self.statusLabel.textColor = [UIColor redColor];
-                self.statusLabel.text = json[@"message"] ?: @"فشل التحقق";
-                self.loginButton.enabled = YES;
+            for (NSDictionary *u in users) {
+                if ([u[@"username"] isEqualToString:username] && [u[@"password"] isEqualToString:password]) {
+                    
+                    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+                    formatter.dateFormat = @"yyyy-MM-dd";
+                    NSDate *expiryDate = [formatter dateFromString:u[@"expiry"]];
+                    
+                    if ([[NSDate date] compare:expiryDate] == NSOrderedDescending) {
+                        self.statusLabel.text = @"انتهت صلاحية الاشتراك";
+                    } else if (![u[@"device_id"] isEqualToString:@"ALL"] && ![u[@"device_id"] isEqualToString:[self getDeviceID]]) {
+                        self.statusLabel.text = @"هذا الجهاز غير مسجل";
+                    } else {
+                        self.statusLabel.textColor = [UIColor greenColor];
+                        self.statusLabel.text = @"تم تسجيل الدخول بنجاح!";
+                        [self hideLogin];
+                        return;
+                    }
+                    self.loginButton.enabled = YES;
+                    return;
+                }
             }
+            self.statusLabel.text = @"اسم المستخدم أو كلمة المرور خاطئة";
+            self.loginButton.enabled = YES;
         });
     }];
-    
     [task resume];
+}
+
+- (void)hideLogin {
+    [UIView animateWithDuration:0.6 animations:^{
+        self.view.alpha = 0.0;
+    } completion:^(BOOL finished) {
+        [self.view removeFromSuperview];
+        [self removeFromParentViewController];
+    }];
 }
 
 @end
 
-// ==================== Safe Key Window ====================
+// ==================== KeyWindow & Hooks (انسخ من الردود السابقة) ====================
+
 static UIWindow *getKeyWindow(void) {
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
             if (scene.activationState == UISceneActivationStateForegroundActive) {
-                for (UIWindow *window in scene.windows) {
-                    if (window.isKeyWindow) return window;
-                }
+                for (UIWindow *w in scene.windows) if (w.isKeyWindow) return w;
             }
         }
         return nil;
@@ -154,18 +149,17 @@ static UIWindow *getKeyWindow(void) {
     }
 }
 
-// ==================== HOOKS ====================
-
+// Hooks...
 %hook UIApplication
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     BOOL orig = %orig;
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *keyWindow = getKeyWindow();
-        if (keyWindow) {
+        UIWindow *kw = getKeyWindow();
+        if (kw) {
             OneStateLoginViewController *vc = [[OneStateLoginViewController alloc] init];
-            vc.view.frame = keyWindow.bounds;
-            [keyWindow addSubview:vc.view];
-            [keyWindow bringSubviewToFront:vc.view];
+            vc.view.frame = kw.bounds;
+            [kw addSubview:vc.view];
+            [kw bringSubviewToFront:vc.view];
         }
     });
     return orig;
@@ -177,13 +171,13 @@ static UIWindow *getKeyWindow(void) {
     %orig;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIWindow *keyWindow = getKeyWindow();
-            if (keyWindow) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            UIWindow *kw = getKeyWindow();
+            if (kw) {
                 OneStateLoginViewController *vc = [[OneStateLoginViewController alloc] init];
-                vc.view.frame = keyWindow.bounds;
-                [keyWindow addSubview:vc.view];
-                [keyWindow bringSubviewToFront:vc.view];
+                vc.view.frame = kw.bounds;
+                [kw addSubview:vc.view];
+                [kw bringSubviewToFront:vc.view];
             }
         });
     });
@@ -192,5 +186,5 @@ static UIWindow *getKeyWindow(void) {
 
 %ctor {
     %init;
-    NSLog(@"[OneStateLogin] Online Version Loaded");
+    NSLog(@"[OneStateLogin] JSONBin Version Loaded");
 }
