@@ -4,12 +4,6 @@
 <dict>
     <key>Filter</key>
     <dict>
-        <key>CoreFoundationVersion</key>
-        <array>
-            <integer>1750</integer>
-            <integer>2000</integer>
-        </array>
-        <!-- يعمل على كل التطبيقات -->
         <key>Mode</key>
         <string>Any</string>
     </dict>
