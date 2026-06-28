@@ -1,4 +1,4 @@
-// Tweak.xm - OneStateLogin (Forced Version)
+// Tweak.xm - OneStateLogin (Forced + Fixed)
 
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
@@ -56,68 +56,54 @@
 }
 
 - (void)loginTapped {
+    self.statusLabel.textColor = [UIColor yellowColor];
     self.statusLabel.text = @"جاري التحقق...";
     self.loginButton.enabled = NO;
-    // حالياً نضع رسالة بسيطة للاختبار
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         self.statusLabel.textColor = [UIColor greenColor];
-        self.statusLabel.text = @"تم تسجيل الدخول (اختبار)";
+        self.statusLabel.text = @"✅ تم تسجيل الدخول (اختبار)";
     });
 }
 
 @end
 
-// ==================== FORCED HOOKS ====================
-static void showLoginScreen(UIWindow *window) {
-    if (!window) return;
-    
-    OneStateLoginViewController *vc = [[OneStateLoginViewController alloc] init];
-    vc.view.frame = window.bounds;
-    [window addSubview:vc.view];
-    [window bringSubviewToFront:vc.view];
+// ==================== SAFE KEY WINDOW ====================
+static UIWindow *getKeyWindow(void) {
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                for (UIWindow *window in scene.windows) {
+                    if (window.isKeyWindow) return window;
+                }
+            }
+        }
+        return nil;
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        return [[UIApplication sharedApplication] keyWindow];
+#pragma clang diagnostic pop
+    }
 }
 
+// ==================== FORCED HOOKS ====================
 %hook UIWindow
 - (void)makeKeyAndVisible {
     %orig;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        showLoginScreen(self);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.6 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        UIWindow *kw = getKeyWindow();
+        if (kw) {
+            OneStateLoginViewController *vc = [[OneStateLoginViewController alloc] init];
+            vc.view.frame = kw.bounds;
+            [kw addSubview:vc.view];
+            [kw bringSubviewToFront:vc.view];
+        }
     });
-}
-
-- (void)didMoveToWindow {
-    %orig;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.8 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        showLoginScreen(self);
-    });
-}
-%end
-
-%hook UIApplication
-- (void)sendEvent:(UIEvent *)event {
-    %orig;
-    static BOOL once = NO;
-    if (!once) {
-        once = YES;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            UIWindow *keyWindow = nil;
-            if (@available(iOS 13.0, *)) {
-                for (UIWindowScene *scene in UIApplication.sharedApplication.connectedScenes) {
-                    if (scene.activationState == UISceneActivationStateForegroundActive) {
-                        keyWindow = scene.windows.firstObject;
-                        break;
-                    }
-                }
-            } else {
-                keyWindow = UIApplication.sharedApplication.keyWindow;
-            }
-            if (keyWindow) showLoginScreen(keyWindow);
-        });
-    }
 }
 %end
 
 %ctor {
     %init;
-    NSLog(@"[OneStateLogin] Forced Overlay Version Loaded");
+    NSLog(@"[OneStateLogin] Forced Stable Version Loaded");
 }
