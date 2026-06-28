@@ -11,7 +11,7 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
 @implementation LoginOverlay
 
 + (UIWindow *)getAppWindow {
-    // طريقة حديثة وآمنة لجلب الـ Window الأساسي في نظام iOS 13 فما فوق بدون استخدام keyWindow القديم
+    // طريقة حديثة وآمنة لجلب الـ Window الأساسي في نظام iOS 13 فما فوق متوافقة مع iOS 18+
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
             if (scene.activationState == UISceneActivationStateForegroundActive) {
@@ -23,12 +23,14 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
             }
         }
     }
-    // كود احتياطي في حال فشلت الطريقة الحديثة أو للإصدارات الأقدم
-    UIWindow *window = [UIApplication sharedApplication].keyWindow;
-    if (!window) {
-        window = [[UIApplication sharedApplication].windows firstObject];
+    
+    // كود احتياطي آمن لا يسبب خطأ التحذير (استخدام أول نافذة متاحة مباشرة بدلاً من keyWindow)
+    NSArray *windows = [UIApplication sharedApplication].windows;
+    if (windows.count > 0) {
+        return windows.firstObject;
     }
-    return window;
+    
+    return nil;
 }
 
 + (void)showLoginScreen {
@@ -74,13 +76,12 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         [window addSubview:loginView];
         [window bringSubviewToFront:loginView];
         
-        // إصلاح الخطأ: تمرير الـ Key الثابت بشكل صحيح كـ const void *
+        // تمرير الـ Key الثابت بشكل صحيح كـ const void *
         objc_setAssociatedObject(loginButton, kCodeFieldAssociatedKey, codeField, OBJC_ASSOCIATION_ASSIGN);
     });
 }
 
 + (void)verifyCodeAndDevice:(UIButton *)sender {
-    // إصلاح الخطأ هنا أيضاً عند جلب الحقل
     UITextField *codeField = objc_getAssociatedObject(sender, kCodeFieldAssociatedKey);
     if (!codeField) return;
 
@@ -122,15 +123,16 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         
         if ([jsonResponse[@"status"] isEqualToString:@"success"]) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                // استخدام دالة جلب النافذة المصلحة والآمنة
                 UIWindow *window = [LoginOverlay getAppWindow];
-                UIView *loginView = [window viewWithTag:9999];
-                if (loginView) {
-                    [UIView animateWithDuration:0.3 animations:^{
-                        loginView.alpha = 0.0;
-                    } completion:^(BOOL finished) {
-                        [loginView removeFromSuperview];
-                    }];
+                if (window) {
+                    UIView *loginView = [window viewWithTag:9999];
+                    if (loginView) {
+                        [UIView animateWithDuration:0.3 animations:^{
+                            loginView.alpha = 0.0;
+                        } completion:^(BOOL finished) {
+                            [loginView removeFromSuperview];
+                        }];
+                    }
                 }
             });
         } else {
