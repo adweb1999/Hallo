@@ -9,6 +9,7 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
 
 @implementation LoginOverlay
 
+// دالة جلب النافذة الرئيسية للتطبيق بشكل متوافق وآمن مع أنظمة iOS الحديثة
 + (UIWindow *)getAppWindow {
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -21,12 +22,10 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
             }
         }
     }
-    
     NSArray *windows = [UIApplication sharedApplication].windows;
     if (windows.count > 0) {
         return windows.firstObject;
     }
-    
     return nil;
 }
 
@@ -39,24 +38,20 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
             return;
         }
 
-        // 1. إنشاء شاشة الحجب الكاملة مع خاصية التمدد التلقائي عند الدوران
+        // 1. إنشاء شاشة الحجب الكاملة وتدعم الدوران تلقائياً
         UIView *loginView = [[UIView alloc] initWithFrame:window.bounds];
         loginView.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.07 alpha:0.98];
         loginView.tag = 9999; 
         loginView.userInteractionEnabled = YES;
-        
-        // يجعل الخلفية تأخذ كامل مساحة الشاشة تلقائياً عند الدوران
         loginView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
-        // حاوية داخلية (Container) لوضع العناصر بداخلها لتبقى دائماً في المنتصف
+        // حاوية داخلية للعناصر تضمن توسطها في المنتصف دائماً عند تدوير الشاشة
         UIView *containerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 320, 200)];
         containerView.center = CGPointMake(loginView.bounds.size.width / 2, loginView.bounds.size.height / 2);
-        
-        // تجعل الحاوية تحافظ على موقعها في منتصف الشاشة تماماً عند تدوير الجهاز
         containerView.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
         [loginView addSubview:containerView];
 
-        // 2. حقل إدخال الكود (داخل الحاوية)
+        // 2. حقل إدخال الكود
         UITextField *codeField = [[UITextField alloc] initWithFrame:CGRectMake(0, 20, 320, 55)];
         codeField.backgroundColor = [UIColor colorWithWhite:0.15 alpha:1.0];
         codeField.textColor = [UIColor whiteColor];
@@ -69,7 +64,7 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         codeField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:codeField.placeholder attributes:@{NSForegroundColorAttributeName: [UIColor lightGrayColor]}];
         [containerView addSubview:codeField];
 
-        // 3. زر التفعيل (داخل الحاوية)
+        // 3. زر التفعيل
         UIButton *loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
         loginButton.frame = CGRectMake(0, 95, 320, 55);
         loginButton.backgroundColor = [UIColor systemBlueColor];
@@ -78,7 +73,7 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         loginButton.titleLabel.font = [UIFont boldSystemFontOfSize:18];
         loginButton.layer.cornerRadius = 12;
         
-        [loginButton addTarget:self action:@selector(verifyCodeAndDevice:) forControlEvents:UIControlEventTouchUpInside];
+        [loginButton addTarget:self action:@selector(activateCode:) forControlEvents:UIControlEventTouchUpInside];
         [containerView addSubview:loginButton];
 
         [window addSubview:loginView];
@@ -88,7 +83,8 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     });
 }
 
-+ (void)verifyCodeAndDevice:(UIButton *)sender {
+// دالة التفعيل (الضغط على الزر) - تستدعي الـ activate.php
++ (void)activateCode:(UIButton *)sender {
     UITextField *codeField = objc_getAssociatedObject(sender, kCodeFieldAssociatedKey);
     if (!codeField) return;
 
@@ -103,17 +99,19 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     NSString *deviceId = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
     if (!deviceId) deviceId = @"unknown_device_id";
 
-    [sender setTitle:@"جاري التحقق من الجهاز والكود..." forState:UIControlStateNormal];
+    [sender setTitle:@"جاري التفعيل..." forState:UIControlStateNormal];
     sender.backgroundColor = [UIColor darkGrayColor];
     sender.enabled = NO;
 
-    NSURL *url = [NSURL URLWithString:@"https://your-domain.com/api/verify.php"];
+    // إرسال الطلب بصيغة JSON إلى رابط التفعيل (activate.php)
+    NSURL *url = [NSURL URLWithString:@"https://spin.zya.me/api/license/activate.php"];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setHTTPMethod:@"POST"];
-    [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     
-    NSString *postString = [NSString stringWithFormat:@"code=%@&device_id=%@", enteredCode, deviceId];
-    [request setHTTPBody:[postString dataUsingEncoding:NSUTF8StringEncoding]];
+    NSDictionary *jsonDict = @{@"code": enteredCode, @"device_id": deviceId};
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:jsonDict options:0 error:nil];
+    [request setHTTPBody:jsonData];
 
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (error) {
@@ -125,11 +123,16 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
             return;
         }
 
-        NSError *jsonError;
-        NSDictionary *jsonResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+        NSDictionary *jsonResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         
         if ([jsonResponse[@"status"] isEqualToString:@"success"]) {
             dispatch_async(dispatch_get_main_queue(), ^{
+                // حفظ الكود والـ Device ID في الـ UserDefaults لكي نستخدمهم لاحقاً للتحقق التلقائي
+                [[NSUserDefaults standardUserDefaults] setObject:enteredCode forKey:@"SavedLicenseCode"];
+                [[NSUserDefaults standardUserDefaults] setObject:deviceId forKey:@"SavedDeviceID"];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+
+                // إخفاء الشاشة فوراً عند نجاح التفعيل الأول
                 UIWindow *window = [LoginOverlay getAppWindow];
                 if (window) {
                     UIView *loginView = [window viewWithTag:9999];
@@ -144,7 +147,7 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
             });
         } else {
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSString *errorMessage = jsonResponse[@"message"] ? jsonResponse[@"message"] : @"فشل التحقق!";
+                NSString *errorMessage = jsonResponse[@"message"] ? jsonResponse[@"message"] : @"فشل التفعيل!";
                 [sender setTitle:errorMessage forState:UIControlStateNormal];
                 sender.backgroundColor = [UIColor systemRedColor];
                 sender.enabled = YES;
@@ -154,10 +157,54 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     [task resume];
 }
 
+// دالة صامتة لفحص حالة الكود عند فتح التطبيق مجدداً (تستدعي check.php)
++ (void)checkSavedLicenseStatus {
+    NSString *savedCode = [[NSUserDefaults standardUserDefaults] stringForKey:@"SavedLicenseCode"];
+    NSString *savedDevice = [[NSUserDefaults standardUserDefaults] stringForKey:@"SavedDeviceID"];
+    
+    // إذا لم يكن هناك كود محفوظ مسبقاً، نظهر شاشة تسجيل الدخول مباشرة
+    if (!savedCode || !savedDevice) {
+        [LoginOverlay showLoginScreen];
+        return;
+    }
+    
+    // إرسال طلب تحقق صامت في الخلفية لـ check.php للتأكد من أن الترخيص ما زال سارياً ولم ينتهِ
+    NSURL *url = [NSURL URLWithString:@"https://spin.zya.me/api/license/check.php"];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    [request setHTTPMethod:@"POST"];
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    
+    NSDictionary *jsonDict = @{@"code": savedCode, @"device_id": savedDevice};
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:jsonDict options:0 error:nil];
+    [request setHTTPBody:jsonData];
+    
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error || !data) {
+            // في حال وجود مشكلة شبكة مؤقتة، نترك التطبيق يفتح تسهيلاً للمستخدم أو يمكنك إظهار الشاشة لحمايته
+            return;
+        }
+        
+        NSDictionary *jsonResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        
+        // إذا رجع السيرفر أي شيء غير success (مثلاً انتهت الصلاحية أو تم حظر الكود)
+        if (![jsonResponse[@"status"] isEqualToString:@"success"]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                // مسح الكود المخزن وإظهار شاشة القفل فوراً
+                [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"SavedLicenseCode"];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+                [LoginOverlay showLoginScreen];
+            });
+        }
+    }];
+    [task resume];
+}
+
 @end
 
+// دالة الإقلاع والتحميل للتويك والـ dylib
 static __attribute__((constructor)) void initialize() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [LoginOverlay showLoginScreen];
+        // عند فتح التطبيق، نقوم بالفحص الصامت أولاً؛ إذا كان مفعل سابقاً لن يرى المستخدم شيئاً، وإذا لم يكن مفعلاً ستظهر شاشة القفل.
+        [LoginOverlay checkSavedLicenseStatus];
     });
 }
