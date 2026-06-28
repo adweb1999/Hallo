@@ -1,109 +1,130 @@
-// Tweak.xm - OneStateLogin (زر يعمل + رسائل واضحة)
+// Tweak.xm - OneStateLogin (كود التفعيل + Device ID)
 
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
+#import <objc/runtime.h>
 
-// ==================== CONFIG ====================
-#define JSON_BIN_URL @"https://api.jsonbin.io/v3/b/6a4071d6f5f4af5e293b11e4/latest"
-#define MASTER_KEY @"$2a$10$0Z3J8lUjgst.0aESOMXKukNSTXEjRAcTUwzYeV5RS8r6N4HDCbg6"
-
-// ==================== LOGIN CONTROLLER ====================
-@interface OneStateLoginViewController : UIViewController
-@property (nonatomic, strong) UITextField *usernameField;
-@property (nonatomic, strong) UITextField *passwordField;
-@property (nonatomic, strong) UIButton *loginButton;
-@property (nonatomic, strong) UILabel *statusLabel;
+@interface LoginOverlay : NSObject
++ (void)showLoginScreen;
 @end
 
-@implementation OneStateLoginViewController
+@implementation LoginOverlay
 
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    self.view.backgroundColor = [UIColor blackColor];
-    
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 100, self.view.bounds.size.width, 60)];
-    title.text = @"OneState Login";
-    title.textColor = [UIColor whiteColor];
-    title.font = [UIFont boldSystemFontOfSize:32];
-    title.textAlignment = NSTextAlignmentCenter;
-    [self.view addSubview:title];
-    
-    self.usernameField = [[UITextField alloc] initWithFrame:CGRectMake(40, 200, self.view.bounds.size.width-80, 50)];
-    self.usernameField.placeholder = @"اسم المستخدم";
-    self.usernameField.borderStyle = UITextBorderStyleRoundedRect;
-    self.usernameField.backgroundColor = [UIColor whiteColor];
-    [self.view addSubview:self.usernameField];
-    
-    self.passwordField = [[UITextField alloc] initWithFrame:CGRectMake(40, 270, self.view.bounds.size.width-80, 50)];
-    self.passwordField.placeholder = @"كلمة المرور";
-    self.passwordField.secureTextEntry = YES;
-    self.passwordField.borderStyle = UITextBorderStyleRoundedRect;
-    self.passwordField.backgroundColor = [UIColor whiteColor];
-    [self.view addSubview:self.passwordField];
-    
-    self.loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    self.loginButton.frame = CGRectMake(40, 340, self.view.bounds.size.width-80, 55);
-    [self.loginButton setTitle:@"تسجيل الدخول" forState:UIControlStateNormal];
-    self.loginButton.backgroundColor = [UIColor systemBlueColor];
-    [self.loginButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    self.loginButton.titleLabel.font = [UIFont boldSystemFontOfSize:18];
-    [self.loginButton addTarget:self action:@selector(loginTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.view addSubview:self.loginButton];
-    
-    self.statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(40, 410, self.view.bounds.size.width-80, 100)];
-    self.statusLabel.textAlignment = NSTextAlignmentCenter;
-    self.statusLabel.numberOfLines = 0;
-    self.statusLabel.font = [UIFont systemFontOfSize:15];
-    [self.view addSubview:self.statusLabel];
-}
-
-- (void)loginTapped {
-    NSString *username = [self.usernameField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    NSString *password = [self.passwordField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    
-    if (username.length == 0 || password.length == 0) {
-        self.statusLabel.textColor = [UIColor redColor];
-        self.statusLabel.text = @"❌ يرجى ملء اسم المستخدم وكلمة المرور";
-        return;
-    }
-    
-    self.loginButton.enabled = NO;
-    self.statusLabel.textColor = [UIColor yellowColor];
-    self.statusLabel.text = @"🔄 جاري الاتصال بالخادم...";
-    
-    // اختبار أولي
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        self.statusLabel.textColor = [UIColor greenColor];
-        self.statusLabel.text = @"✅ الزر يعمل!\nجاري محاولة الاتصال...";
++ (void)showLoginScreen {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = nil;
         
-        // محاولة الاتصال الحقيقية
-        [self performRealLogin:username password:password];
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive) {
+                    window = scene.windows.firstObject;
+                    break;
+                }
+            }
+        } else {
+            window = [UIApplication sharedApplication].keyWindow;
+        }
+        
+        if (!window) window = [[UIApplication sharedApplication].windows firstObject];
+        if (!window) return;
+        
+        if ([window viewWithTag:9999]) return;
+        
+        UIView *loginView = [[UIView alloc] initWithFrame:window.bounds];
+        loginView.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.07 alpha:0.98];
+        loginView.tag = 9999;
+        loginView.userInteractionEnabled = YES;
+        
+        // Title
+        UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 100, window.bounds.size.width, 60)];
+        title.text = @"تفعيل OneState";
+        title.textColor = [UIColor whiteColor];
+        title.font = [UIFont boldSystemFontOfSize:32];
+        title.textAlignment = NSTextAlignmentCenter;
+        [loginView addSubview:title];
+        
+        // Code Field
+        UITextField *codeField = [[UITextField alloc] initWithFrame:CGRectMake(40, window.bounds.size.height / 2 - 60, window.bounds.size.width - 80, 55)];
+        codeField.backgroundColor = [UIColor colorWithWhite:0.15 alpha:1.0];
+        codeField.textColor = [UIColor whiteColor];
+        codeField.placeholder = @"أدخل كود التفعيل";
+        codeField.textAlignment = NSTextAlignmentCenter;
+        codeField.layer.cornerRadius = 12;
+        codeField.layer.borderWidth = 1.0;
+        codeField.layer.borderColor = [UIColor darkGrayColor].CGColor;
+        codeField.keyboardType = UIKeyboardTypeASCIICapable;
+        [loginView addSubview:codeField];
+        
+        // Activate Button
+        UIButton *loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
+        loginButton.frame = CGRectMake(40, window.bounds.size.height / 2 + 20, window.bounds.size.width - 80, 55);
+        loginButton.backgroundColor = [UIColor systemBlueColor];
+        [loginButton setTitle:@"تفعيل التطبيق" forState:UIControlStateNormal];
+        [loginButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        loginButton.titleLabel.font = [UIFont boldSystemFontOfSize:18];
+        loginButton.layer.cornerRadius = 12;
+        
+        [loginButton addTarget:self action:@selector(verifyCodeAndDevice:) forControlEvents:UIControlEventTouchUpInside];
+        [loginView addSubview:loginButton];
+        
+        [window addSubview:loginView];
+        [window bringSubviewToFront:loginView];
+        
+        objc_setAssociatedObject(loginButton, @"codeField", codeField, OBJC_ASSOCIATION_ASSIGN);
     });
 }
 
-- (void)performRealLogin:(NSString *)username password:(NSString *)password {
-    NSURL *url = [NSURL URLWithString:JSON_BIN_URL];
++ (void)verifyCodeAndDevice:(UIButton *)sender {
+    UITextField *codeField = objc_getAssociatedObject(sender, @"codeField");
+    NSString *enteredCode = [codeField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    
+    if (enteredCode.length == 0) {
+        [sender setTitle:@"الرجاء إدخال الكود" forState:UIControlStateNormal];
+        sender.backgroundColor = [UIColor systemOrangeColor];
+        return;
+    }
+    
+    NSString *deviceId = [[[UIDevice currentDevice] identifierForVendor] UUIDString] ?: @"unknown";
+    
+    [sender setTitle:@"جاري التحقق..." forState:UIControlStateNormal];
+    sender.backgroundColor = [UIColor darkGrayColor];
+    sender.enabled = NO;
+    
+    // غير الرابط حسب سيرفرك
+    NSURL *url = [NSURL URLWithString:@"https://your-domain.com/api/verify.php"];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-    [request setValue:MASTER_KEY forHTTPHeaderField:@"X-Master-Key"];
+    request.HTTPMethod = @"POST";
+    [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+    
+    NSString *postString = [NSString stringWithFormat:@"code=%@&device_id=%@", enteredCode, deviceId];
+    request.HTTPBody = [postString dataUsingEncoding:NSUTF8StringEncoding];
     
     NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (error) {
-                self.statusLabel.textColor = [UIColor redColor];
-                self.statusLabel.text = [NSString stringWithFormat:@"❌ خطأ اتصال:\n%@", error.localizedDescription];
-                self.loginButton.enabled = YES;
+            if (error || !data) {
+                [sender setTitle:@"خطأ في الاتصال بالسيرفر" forState:UIControlStateNormal];
+                sender.backgroundColor = [UIColor systemRedColor];
+                sender.enabled = YES;
                 return;
             }
             
-            if (!data) {
-                self.statusLabel.text = @"❌ لا يوجد رد من الخادم";
-                self.loginButton.enabled = YES;
-                return;
-            }
+            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
             
-            self.statusLabel.textColor = [UIColor greenColor];
-            self.statusLabel.text = @"✅ تم الاتصال بنجاح!\n(سيتم إكمال التحقق قريباً)";
-            self.loginButton.enabled = YES;
+            if ([json[@"status"] isEqualToString:@"success"]) {
+                UIView *loginView = [[UIApplication sharedApplication].keyWindow viewWithTag:9999];
+                if (loginView) {
+                    [UIView animateWithDuration:0.5 animations:^{
+                        loginView.alpha = 0;
+                    } completion:^(BOOL finished) {
+                        [loginView removeFromSuperview];
+                    }];
+                }
+            } else {
+                NSString *msg = json[@"message"] ?: @"كود غير صحيح أو مستخدم";
+                [sender setTitle:msg forState:UIControlStateNormal];
+                sender.backgroundColor = [UIColor systemRedColor];
+                sender.enabled = YES;
+            }
         });
     }];
     [task resume];
@@ -111,39 +132,11 @@
 
 @end
 
-// ==================== HOOKS ====================
-static UIWindow *getKeyWindow(void) {
-    if (@available(iOS 13.0, *)) {
-        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive) {
-                for (UIWindow *w in scene.windows) if (w.isKeyWindow) return w;
-            }
-        }
-        return nil;
-    } else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        return [[UIApplication sharedApplication] keyWindow];
-#pragma clang diagnostic pop
-    }
-}
-
-%hook UIWindow
-- (void)makeKeyAndVisible {
-    %orig;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        UIWindow *kw = getKeyWindow();
-        if (kw) {
-            OneStateLoginViewController *vc = [[OneStateLoginViewController alloc] init];
-            vc.view.frame = kw.bounds;
-            [kw addSubview:vc.view];
-            [kw bringSubviewToFront:vc.view];
-        }
-    });
-}
-%end
-
+// ==================== INITIALIZER ====================
 %ctor {
-    %init;
-    NSLog(@"[OneStateLogin] Button Test Version Loaded");
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [LoginOverlay showLoginScreen];
+    });
+    
+    NSLog(@"[OneStateLogin] Activated - Code Login System");
 }
