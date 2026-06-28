@@ -1,7 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 
-// تعريف مفتاح ثابت فريد للـ Associated Object لمنع أخطاء الـ Compiler
 static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
 
 @interface LoginOverlay : NSObject
@@ -11,7 +10,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
 @implementation LoginOverlay
 
 + (UIWindow *)getAppWindow {
-    // طريقة حديثة وآمنة لجلب الـ Window الأساسي في نظام iOS 13 فما فوق متوافقة مع iOS 18+
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
             if (scene.activationState == UISceneActivationStateForegroundActive) {
@@ -24,7 +22,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         }
     }
     
-    // كود احتياطي آمن لا يسبب خطأ التحذير (استخدام أول نافذة متاحة مباشرة بدلاً من keyWindow)
     NSArray *windows = [UIApplication sharedApplication].windows;
     if (windows.count > 0) {
         return windows.firstObject;
@@ -42,14 +39,25 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
             return;
         }
 
-        // إنشاء شاشة الحجب الكاملة
+        // 1. إنشاء شاشة الحجب الكاملة مع خاصية التمدد التلقائي عند الدوران
         UIView *loginView = [[UIView alloc] initWithFrame:window.bounds];
         loginView.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.07 alpha:0.98];
         loginView.tag = 9999; 
         loginView.userInteractionEnabled = YES;
+        
+        // يجعل الخلفية تأخذ كامل مساحة الشاشة تلقائياً عند الدوران
+        loginView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 
-        // حقل إدخال الكود
-        UITextField *codeField = [[UITextField alloc] initWithFrame:CGRectMake(40, window.bounds.size.height / 2 - 60, window.bounds.size.width - 80, 55)];
+        // حاوية داخلية (Container) لوضع العناصر بداخلها لتبقى دائماً في المنتصف
+        UIView *containerView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 320, 200)];
+        containerView.center = CGPointMake(loginView.bounds.size.width / 2, loginView.bounds.size.height / 2);
+        
+        // تجعل الحاوية تحافظ على موقعها في منتصف الشاشة تماماً عند تدوير الجهاز
+        containerView.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+        [loginView addSubview:containerView];
+
+        // 2. حقل إدخال الكود (داخل الحاوية)
+        UITextField *codeField = [[UITextField alloc] initWithFrame:CGRectMake(0, 20, 320, 55)];
         codeField.backgroundColor = [UIColor colorWithWhite:0.15 alpha:1.0];
         codeField.textColor = [UIColor whiteColor];
         codeField.placeholder = @"أدخل كود التفعيل الخاص بك...";
@@ -59,11 +67,11 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         codeField.layer.borderColor = [UIColor darkGrayColor].CGColor;
         codeField.keyboardType = UIKeyboardTypeASCIICapable;
         codeField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:codeField.placeholder attributes:@{NSForegroundColorAttributeName: [UIColor lightGrayColor]}];
-        [loginView addSubview:codeField];
+        [containerView addSubview:codeField];
 
-        // زر التفعيل
+        // 3. زر التفعيل (داخل الحاوية)
         UIButton *loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
-        loginButton.frame = CGRectMake(40, window.bounds.size.height / 2 + 15, window.bounds.size.width - 80, 55);
+        loginButton.frame = CGRectMake(0, 95, 320, 55);
         loginButton.backgroundColor = [UIColor systemBlueColor];
         [loginButton setTitle:@"تفعيل التطبيق" forState:UIControlStateNormal];
         [loginButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
@@ -71,12 +79,11 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         loginButton.layer.cornerRadius = 12;
         
         [loginButton addTarget:self action:@selector(verifyCodeAndDevice:) forControlEvents:UIControlEventTouchUpInside];
-        [loginView addSubview:loginButton];
+        [containerView addSubview:loginButton];
 
         [window addSubview:loginView];
         [window bringSubviewToFront:loginView];
         
-        // تمرير الـ Key الثابت بشكل صحيح كـ const void *
         objc_setAssociatedObject(loginButton, kCodeFieldAssociatedKey, codeField, OBJC_ASSOCIATION_ASSIGN);
     });
 }
