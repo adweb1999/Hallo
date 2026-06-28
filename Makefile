@@ -10,7 +10,6 @@ Login_FILES = Tweak.xm
 Login_CFLAGS = -fobjc-arc
 Login_LDFLAGS = -framework UIKit -framework Foundation
 
-# إضافة الـ Filter
 Login_INSTALL_PATH = /Library/MobileSubstrate/DynamicLibraries
 Login_BUNDLE_FILTER = Login.plist
 
