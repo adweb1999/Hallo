@@ -2,6 +2,7 @@
 #import <objc/runtime.h>
 
 static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
+static NSString *dynamicCookie = nil; // لتخزين الكوكي المستخرج تلقائياً
 
 @interface LoginOverlay : NSObject
 + (void)showLoginScreen;
@@ -28,17 +29,59 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     return nil;
 }
 
+// دالة لجلب الكوكي تلقائياً من السيرفر في حال عدم وجوده
++ (void)fetchBypassCookieWithCompletion:(void (^)(BOOL success))completion {
+    if (dynamicCookie) {
+        if (completion) completion(YES);
+        return;
+    }
+
+    NSURL *url = [NSURL URLWithString:@"https://spin.zya.me/api/license/activate.php"];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    [request setHTTPMethod:@"GET"];
+    [request setValue:@"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" forHTTPHeaderField:@"User-Agent"];
+
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error) {
+            if (completion) completion(NO);
+            return;
+        }
+
+        NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
+        NSDictionary *headers = [httpResponse allHeaderFields];
+        NSString *setCookie = headers[@"Set-Cookie"];
+
+        // إذا كان السيرفر يعطي الكوكي مباشرة في الهيدر
+        if (setCookie && [setCookie containsString:@"__test="]) {
+            NSArray *parts = [setCookie componentsSeparatedByString:@";"];
+            for (NSString *part in parts) {
+                if ([part containsString:@"__test="]) {
+                    dynamicCookie = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                    break;
+                }
+            }
+        }
+
+        // حل احتياطي: إذا فشل هيدر السيرفر، نستخدم القيمة الأخيرة التي أرسلتها كـ Fallback
+        if (!dynamicCookie) {
+            dynamicCookie = @"__test=8395da6a90890be9bf65d447d7fa85b1";
+        }
+
+        if (completion) completion(YES);
+    }];
+    [task resume];
+}
+
 + (NSMutableURLRequest *)createSecureRequestWithURL:(NSString *)urlString jsonDict:(NSDictionary *)jsonDict {
     NSURL *url = [NSURL URLWithString:urlString];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setHTTPMethod:@"POST"];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-    
     [request setValue:@"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" forHTTPHeaderField:@"User-Agent"];
     
-    // التحديث هنا: تم وضع القيمة الجديدة المستخرجة من الكود الذي أرسلته لتخطي الحماية الحالية لـ zya.me
-    NSString *cookieValue = @"8395da6a90890be9bf65d447d7fa85b1"; 
-    [request setValue:[NSString stringWithFormat:@"__test=%@;", cookieValue] forHTTPHeaderField:@"Cookie"];
+    if (dynamicCookie) {
+        [request setValue:dynamicCookie forHTTPHeaderField:@"Cookie"];
+    }
     
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:jsonDict options:0 error:nil];
     [request setHTTPBody:jsonData];
@@ -111,54 +154,60 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     NSString *deviceId = [[[UIDevice currentDevice] identifierForVendor] UUIDString];
     if (!deviceId) deviceId = @"unknown_device_id";
 
-    [sender setTitle:@"جاري التفعيل..." forState:UIControlStateNormal];
+    [sender setTitle:@"جاري الاتصال الآمن..." forState:UIControlStateNormal];
     sender.backgroundColor = [UIColor darkGrayColor];
     sender.enabled = NO;
 
-    NSDictionary *jsonDict = @{@"code": enteredCode, @"device_id": deviceId};
-    NSMutableURLRequest *request = [self createSecureRequestWithURL:@"https://spin.zya.me/api/license/activate.php" jsonDict:jsonDict];
+    // أولاً: جلب الكوكي ديناميكياً لتجاوز الحماية
+    [self fetchBypassCookieWithCompletion:^(BOOL success) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [sender setTitle:@"جاري التفعيل..." forState:UIControlStateNormal];
+        });
 
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [sender setTitle:@"خطأ في الاتصال بالخادم!" forState:UIControlStateNormal];
-                sender.backgroundColor = [UIColor systemRedColor];
-                sender.enabled = YES;
-            });
-            return;
-        }
+        NSDictionary *jsonDict = @{@"code": enteredCode, @"device_id": deviceId};
+        NSMutableURLRequest *request = [self createSecureRequestWithURL:@"https://spin.zya.me/api/license/activate.php" jsonDict:jsonDict];
 
-        NSError *jsonError;
-        NSDictionary *jsonResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
-        
-        if (jsonResponse && [jsonResponse[@"status"] isEqualToString:@"success"]) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [[NSUserDefaults standardUserDefaults] setObject:enteredCode forKey:@"SavedLicenseCode"];
-                [[NSUserDefaults standardUserDefaults] setObject:deviceId forKey:@"SavedDeviceID"];
-                [[NSUserDefaults standardUserDefaults] synchronize];
+        NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            if (error) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [sender setTitle:@"خطأ في الاتصال بالخادم!" forState:UIControlStateNormal];
+                    sender.backgroundColor = [UIColor systemRedColor];
+                    sender.enabled = YES;
+                });
+                return;
+            }
 
-                UIWindow *window = [LoginOverlay getAppWindow];
-                if (window) {
-                    UIView *loginView = [window viewWithTag:9999];
-                    if (loginView) {
-                        [UIView animateWithDuration:0.3 animations:^{
-                            loginView.alpha = 0.0;
-                        } completion:^(BOOL finished) {
-                            [loginView removeFromSuperview];
-                        }];
+            NSDictionary *jsonResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            
+            if (jsonResponse && [jsonResponse[@"status"] isEqualToString:@"success"]) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [[NSUserDefaults standardUserDefaults] setObject:enteredCode forKey:@"SavedLicenseCode"];
+                    [[NSUserDefaults standardUserDefaults] setObject:deviceId forKey:@"SavedDeviceID"];
+                    [[NSUserDefaults standardUserDefaults] synchronize];
+
+                    UIWindow *window = [LoginOverlay getAppWindow];
+                    if (window) {
+                        UIView *loginView = [window viewWithTag:9999];
+                        if (loginView) {
+                            [UIView animateWithDuration:0.3 animations:^{
+                                loginView.alpha = 0.0;
+                            } completion:^(BOOL finished) {
+                                [loginView removeFromSuperview];
+                            }];
+                        }
                     }
-                }
-            });
-        } else {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                NSString *errorMessage = jsonResponse[@"message"] ? jsonResponse[@"message"] : @"فشل التفعيل أو السيرفر محجوب!";
-                [sender setTitle:errorMessage forState:UIControlStateNormal];
-                sender.backgroundColor = [UIColor systemRedColor];
-                sender.enabled = YES;
-            });
-        }
+                });
+            } else {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *errorMessage = jsonResponse[@"message"] ? jsonResponse[@"message"] : @"فشل التفعيل أو السيرفر محجوب!";
+                    [sender setTitle:errorMessage forState:UIControlStateNormal];
+                    sender.backgroundColor = [UIColor systemRedColor];
+                    sender.enabled = YES;
+                });
+            }
+        }];
+        [task resume];
     }];
-    [task resume];
 }
 
 + (void)checkSavedLicenseStatus {
@@ -170,25 +219,24 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         return;
     }
     
-    NSDictionary *jsonDict = @{@"code": savedCode, @"device_id": savedDevice};
-    NSMutableURLRequest *request = [self createSecureRequestWithURL:@"https://spin.zya.me/api/license/check.php" jsonDict:jsonDict];
-    
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (error || !data) {
-            return;
-        }
+    [self fetchBypassCookieWithCompletion:^(BOOL success) {
+        NSDictionary *jsonDict = @{@"code": savedCode, @"device_id": savedDevice};
+        NSMutableURLRequest *request = [self createSecureRequestWithURL:@"https://spin.zya.me/api/license/check.php" jsonDict:jsonDict];
         
-        NSDictionary *jsonResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-        
-        if (jsonResponse && ![jsonResponse[@"status"] isEqualToString:@"success"]) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"SavedLicenseCode"];
-                [[NSUserDefaults standardUserDefaults] synchronize];
-                [LoginOverlay showLoginScreen];
-            });
-        }
+        NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            if (error || !data) return;
+            
+            NSDictionary *jsonResponse = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if (jsonResponse && ![jsonResponse[@"status"] isEqualToString:@"success"]) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"SavedLicenseCode"];
+                    [[NSUserDefaults standardUserDefaults] synchronize];
+                    [LoginOverlay showLoginScreen];
+                });
+            }
+        }];
+        [task resume];
     }];
-    [task resume];
 }
 
 @end
