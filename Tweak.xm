@@ -9,7 +9,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
 
 @implementation LoginOverlay
 
-// دالة جلب النافذة الرئيسية للتطبيق
 + (UIWindow *)getAppWindow {
     if (@available(iOS 13.0, *)) {
         for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -29,19 +28,16 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     return nil;
 }
 
-// دالة لتجهيز الطلب وإضافة الكوكي (__test) لتخطي حماية السيرفر المجاني
 + (NSMutableURLRequest *)createSecureRequestWithURL:(NSString *)urlString jsonDict:(NSDictionary *)jsonDict {
     NSURL *url = [NSURL URLWithString:urlString];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setHTTPMethod:@"POST"];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     
-    // محاكاة المتصفح بالكامل لتجنب الحجب
     [request setValue:@"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" forHTTPHeaderField:@"User-Agent"];
     
-    // القيمة الناتجة عن فك تشفير كود الـ AES الخاص بسيرفرك (تتغير كل بضعة أشهر من الاستضافة تلقائياً)
-    // إذا توقف التفعيل فجأة، ستحتاج فقط لتحديث هذه القيمة بناءً على كود المتصفح الجديد
-    NSString *cookieValue = @"b6d4949219e1f5ec13b351336fa09bf4"; 
+    // التحديث هنا: تم وضع القيمة الجديدة المستخرجة من الكود الذي أرسلته لتخطي الحماية الحالية لـ zya.me
+    NSString *cookieValue = @"8395da6a90890be9bf65d447d7fa85b1"; 
     [request setValue:[NSString stringWithFormat:@"__test=%@;", cookieValue] forHTTPHeaderField:@"Cookie"];
     
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:jsonDict options:0 error:nil];
@@ -59,7 +55,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
             return;
         }
 
-        // إنشاء شاشة الحجب الكاملة وتدعم الدوران تلقائياً
         UIView *loginView = [[UIView alloc] initWithFrame:window.bounds];
         loginView.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.07 alpha:0.98];
         loginView.tag = 9999; 
@@ -71,7 +66,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         containerView.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
         [loginView addSubview:containerView];
 
-        // حقل إدخال الكود
         UITextField *codeField = [[UITextField alloc] initWithFrame:CGRectMake(0, 20, 320, 55)];
         codeField.backgroundColor = [UIColor colorWithWhite:0.15 alpha:1.0];
         codeField.textColor = [UIColor whiteColor];
@@ -84,7 +78,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
         codeField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:codeField.placeholder attributes:@{NSForegroundColorAttributeName: [UIColor lightGrayColor]}];
         [containerView addSubview:codeField];
 
-        // زر التفعيل
         UIButton *loginButton = [UIButton buttonWithType:UIButtonTypeSystem];
         loginButton.frame = CGRectMake(0, 95, 320, 55);
         loginButton.backgroundColor = [UIColor systemBlueColor];
@@ -103,7 +96,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     });
 }
 
-// دالة التفعيل (تستدعي activate.php مع الكوكي المخترق)
 + (void)activateCode:(UIButton *)sender {
     UITextField *codeField = objc_getAssociatedObject(sender, kCodeFieldAssociatedKey);
     if (!codeField) return;
@@ -123,7 +115,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     sender.backgroundColor = [UIColor darkGrayColor];
     sender.enabled = NO;
 
-    // تجهيز الطلب الآمن عبر الدالة الجديدة لكسر الحماية لقسم تفعيل الكود
     NSDictionary *jsonDict = @{@"code": enteredCode, @"device_id": deviceId};
     NSMutableURLRequest *request = [self createSecureRequestWithURL:@"https://spin.zya.me/api/license/activate.php" jsonDict:jsonDict];
 
@@ -170,7 +161,6 @@ static const void *kCodeFieldAssociatedKey = &kCodeFieldAssociatedKey;
     [task resume];
 }
 
-// دالة صامتة لفحص حالة الكود عند فتح التطبيق مجدداً (تستدعي check.php مع الكوكي)
 + (void)checkSavedLicenseStatus {
     NSString *savedCode = [[NSUserDefaults standardUserDefaults] stringForKey:@"SavedLicenseCode"];
     NSString *savedDevice = [[NSUserDefaults standardUserDefaults] stringForKey:@"SavedDeviceID"];
